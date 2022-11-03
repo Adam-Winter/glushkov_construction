@@ -7,8 +7,7 @@ type regex =
   | Star of regex
       
 type regex2 = 
-  | Letter of int
-  | Point
+  | Letter of int 
   | Option of regex2
   | Union of regex2 * regex2
   | Concat of regex2 * regex2
@@ -121,10 +120,20 @@ let regex_of_string (s: string): regex =
           aux (Letter(s.[i])::e1::e2::rest) (i+1) 
   in aux [] 0
     
+let gestion_point (i: int) (save: (int * char) list)=
+  (* on considère le point comme l'union de toute les lettres*) 
+  let rec aux (e: regex2) (j: int) (save: (int * char) list)=
+    if j = 128 then
+      e, i + 128, save 
+    else 
+      aux (Union( Letter(i + j), e)) (j+1) (((i+j), (Char.chr j))::save)
+  in 
+  aux (Letter(i)) 1 ((i, (Char.chr 0))::save)
+        
     
 let regex_of_string_linearized (s: string): regex2 * ((int * char) list) =
   let len = String.length s in
-  let rec aux (stack: regex2 list) (i: int) (save: (int * char) list)  =
+  let rec aux (stack: regex2 list) (i: int) (save: (int * char) list) (j: int)  =
     match stack with 
     | [] -> 
         if i = len then
@@ -132,38 +141,39 @@ let regex_of_string_linearized (s: string): regex2 * ((int * char) list) =
         else if s.[i] = '*' || s.[i] = '?' || s.[i] = '|' || s.[i] = '@' then
           failwith "format regexp invalide "
         else if s.[i] = '.' then
-          aux [Point] (i+1) ((i , '.')::save)
+          let e, new_j, new_save = gestion_point i save in
+          
+          aux [e] (i+1) new_save new_j
         else 
-          aux [Letter(i)] (i+1) ((i, s.[i])::save)
+          aux [Letter(i)] (i+1) ((i, s.[i])::save) (j+1)
     |elt::[] ->
         if i = len then
           elt, save
         else if  s.[i] = '|' || s.[i] = '@' then
           failwith "format regexp invalide "
         else if s.[i] = '*' then
-          aux [Star(elt)] (i+1) save
+          aux [Star(elt)] (i+1) save j
         else if s.[i] = '?' then
-          aux [Option(elt)] (i+1) save
+          aux [Option(elt)] (i+1) save j
         else if s.[i] = '.' then
-          aux [Point; elt] (i+1) ((i, '.')::save)
+          let e, new_j, new_save = gestion_point i save in
+          aux [e; elt] (i+1) new_save new_j
         else 
-          aux [(Letter(i));elt] (i+1) ((i, s.[i])::save)
+          aux [(Letter(i));elt] (i+1) ((i, s.[i])::save) (j+1)
     |e1::e2::rest -> 
         if i = len then
           failwith "format invalide"
         else if  s.[i] = '|' then
-          aux ((Union(e2,e1))::rest) (i+1) save
+          aux ((Union(e2,e1))::rest) (i+1) save j
         else if s.[i] = '@' then
-          aux (Concat(e2, e1)::rest) (i+1) save
+          aux (Concat(e2, e1)::rest) (i+1) save j
         else if s.[i] = '*' then
-          aux (Star(e1)::e2::rest) (i+1) save
+          aux (Star(e1)::e2::rest) (i+1) save j
         else if s.[i] = '?' then
-          aux (Option(e1)::e2::rest) (i+1) save
+          aux (Option(e1)::e2::rest) (i+1) save j
         else if s.[i] = '.' then
-          aux (Point::e1::e2::rest) (i+1) ((i, '.')::save)
+          let e, new_j, new_save = gestion_point i save in
+          aux (e::e1::e2::rest) (i+1) new_save new_j
         else 
-          aux (Letter(i)::e1::e2::rest) (i+1) ((i, s.[i])::save)
-  in aux [] 0 []
-  
-let test = regex_of_string "ab?@a|"
-let test2 = regex_of_string_linearized "ab?@a|"
+          aux (Letter(i)::e1::e2::rest) (i+1) ((i, s.[i])::save) (j+1)
+  in aux [] 0 [] 0
