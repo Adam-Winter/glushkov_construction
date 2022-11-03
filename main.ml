@@ -5,6 +5,16 @@ type regex =
   | Union of regex * regex
   | Concat of regex * regex
   | Star of regex
+      
+type regex2 = 
+  | Letter of int
+  | Point
+  | Option of regex2
+  | Union of regex2 * regex2
+  | Concat of regex2 * regex2
+  | Star of regex2
+
+      
 
 type automate = {
   nb_etats : int;
@@ -110,4 +120,50 @@ let regex_of_string (s: string): regex =
         else 
           aux (Letter(s.[i])::e1::e2::rest) (i+1) 
   in aux [] 0
-let test = regex_of_string "ab?@c|"
+    
+    
+let regex_of_string_linearized (s: string): regex2 * ((int * char) list) =
+  let len = String.length s in
+  let rec aux (stack: regex2 list) (i: int) (save: (int * char) list)  =
+    match stack with 
+    | [] -> 
+        if i = len then
+          failwith "regexp vide"
+        else if s.[i] = '*' || s.[i] = '?' || s.[i] = '|' || s.[i] = '@' then
+          failwith "format regexp invalide "
+        else if s.[i] = '.' then
+          aux [Point] (i+1) ((i , '.')::save)
+        else 
+          aux [Letter(i)] (i+1) ((i, s.[i])::save)
+    |elt::[] ->
+        if i = len then
+          elt, save
+        else if  s.[i] = '|' || s.[i] = '@' then
+          failwith "format regexp invalide "
+        else if s.[i] = '*' then
+          aux [Star(elt)] (i+1) save
+        else if s.[i] = '?' then
+          aux [Option(elt)] (i+1) save
+        else if s.[i] = '.' then
+          aux [Point; elt] (i+1) ((i, '.')::save)
+        else 
+          aux [(Letter(i));elt] (i+1) ((i, s.[i])::save)
+    |e1::e2::rest -> 
+        if i = len then
+          failwith "format invalide"
+        else if  s.[i] = '|' then
+          aux ((Union(e2,e1))::rest) (i+1) save
+        else if s.[i] = '@' then
+          aux (Concat(e2, e1)::rest) (i+1) save
+        else if s.[i] = '*' then
+          aux (Star(e1)::e2::rest) (i+1) save
+        else if s.[i] = '?' then
+          aux (Option(e1)::e2::rest) (i+1) save
+        else if s.[i] = '.' then
+          aux (Point::e1::e2::rest) (i+1) ((i, '.')::save)
+        else 
+          aux (Letter(i)::e1::e2::rest) (i+1) ((i, s.[i])::save)
+  in aux [] 0 []
+  
+let test = regex_of_string "ab?@a|"
+let test2 = regex_of_string_linearized "ab?@a|"
