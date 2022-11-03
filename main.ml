@@ -28,6 +28,8 @@ let regex_of_string (s: string): regex =
           failwith "regexp vide"
         else if s.[i] = '*' || s.[i] = '?' || s.[i] = '|' || s.[i] = '@' then
           failwith "format regexp invalide "
+        else if s.[i] = "." then
+          aux [Point] (i+1)
         else 
           aux [Letter(s.[i])] (i+1)
     |elt::[] ->
@@ -39,6 +41,8 @@ let regex_of_string (s: string): regex =
           aux [Star(elt)] (i+1) 
         else if s.[i] = '?' then
           aux [Option(elt)] (i+1)
+        else if s.[i] = '.' then
+          aux [Point; elt] (i+1)
         else 
           aux [(Letter(s.[i]));elt] (i+1) 
     |e1::e2::rest -> 
@@ -52,6 +56,8 @@ let regex_of_string (s: string): regex =
           aux (Star(e1)::e2::rest) (i+1) 
         else if s.[i] = '?' then
           aux (Option(e1)::e2::rest) (i+1)
+        else if s.[i] = '.' then
+          aux (Point::e1::e2::rest) (i+1) 
         else 
           aux (Letter(s.[i])::e1::e2::rest) (i+1) 
   in aux [] 0
@@ -59,6 +65,3 @@ let regex_of_string (s: string): regex =
 
 let test = regex_of_string "ab?@c|"
 
-
-
-  
