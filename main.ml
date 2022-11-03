@@ -121,7 +121,7 @@ let regex_of_string (s: string): regex =
   in aux [] 0
     
 let gestion_point (i: int) (save: (int * char) list)=
-  (* on considère le point comme l'union de toute les lettres*) 
+  (* on considère le point comme l'union de toutes les lettres*) 
   let rec aux (e: regex2) (j: int) (save: (int * char) list)=
     if j = 128 then
       e, i + 128, save 
@@ -177,3 +177,37 @@ let regex_of_string_linearized (s: string): regex2 * ((int * char) list) =
         else 
           aux (Letter(i)::e1::e2::rest) (i+1) ((i, s.[i])::save) (j+1)
   in aux [] 0 [] 0
+    
+let rec get_P (e: regex2) : int list = 
+  match e with
+  | Letter(i) -> [i]
+  | Union(e1, e2) -> (get_P e1)@(get_P e2) (* complexité pas folle *) 
+  | Star(e1) |Option(e1) |Concat(e1,_)-> get_P e1 
+                                           
+let rec get_S (e: regex2) : int list = 
+  match e with
+  | Letter(i) -> [i]
+  | Union(e1, e2) -> (get_S e1)@(get_S e2) (* complexité pas folle *) 
+  | Star(e1) |Option(e1) |Concat(_,e1)-> get_S e1
+                                           
+let produit (x: int) (l: int list): (int * int) list =
+  let rec aux l acc =
+    match l with
+    | [] -> acc
+    | y::ys -> aux ys ((x, y)::acc)
+  in aux l []
+                                           
+let produit_cartesien (l1 : int list) (l2: int list): (int * int) list =
+  let rec aux l1 l2 acc=
+    match l1 with
+    | [] -> acc
+    | x::xs -> aux xs l2 ((produit x l2)@acc) 
+  in aux l1 l2 []
+                                           
+let rec get_F (e: regex2): (int * int) list =
+  match e with
+  | Letter(i) -> []
+  | Union(e1, e2) -> (get_F e1)@(get_F e2)
+  | Concat(e1, e2) -> (get_F e1)@(get_F e2)@(produit_cartesien (get_S e1) (get_P e2))
+  | Star(e1) -> (get_F e1)@(produit_cartesien (get_S e1) (get_P e1))
+  | Option(e1) -> get_F e1
