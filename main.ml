@@ -159,7 +159,7 @@ let regex_of_string_linearized (s: string): regex2 * ((int * char) list) =
           let e, new_j, new_save = gestion_point i save in
           aux [e; elt] (i+1) new_save new_j
         else 
-          aux [(Letter(i));elt] (i+1) ((i, s.[i])::save) (j+1)
+          aux [(Letter(j));elt] (i+1) ((j, s.[i])::save) (j+1)
     |e1::e2::rest -> 
         if i = len then
           failwith "format invalide"
@@ -175,19 +175,21 @@ let regex_of_string_linearized (s: string): regex2 * ((int * char) list) =
           let e, new_j, new_save = gestion_point i save in
           aux (e::e1::e2::rest) (i+1) new_save new_j
         else 
-          aux (Letter(i)::e1::e2::rest) (i+1) ((i, s.[i])::save) (j+1)
+          aux (Letter(j)::e1::e2::rest) (i+1) ((j, s.[i])::save) (j+1)
   in aux [] 0 [] 0
     
 let rec get_P (e: regex2) : int list = 
   match e with
   | Letter(i) -> [i]
   | Union(e1, e2) -> (get_P e1)@(get_P e2) (* complexité pas folle *) 
+  | Concat(Star(e1), e2) -> (get_P e1)@(get_P e2)
   | Star(e1) |Option(e1) |Concat(e1,_)-> get_P e1 
                                            
 let rec get_S (e: regex2) : int list = 
   match e with
   | Letter(i) -> [i]
   | Union(e1, e2) -> (get_S e1)@(get_S e2) (* complexité pas folle *) 
+  | Concat(e1, Star(e2)) -> (get_S e1)@(get_S e2)
   | Star(e1) |Option(e1) |Concat(_,e1)-> get_S e1
                                            
 let produit (x: int) (l: int list): (int * int) list =
@@ -211,3 +213,49 @@ let rec get_F (e: regex2): (int * int) list =
   | Concat(e1, e2) -> (get_F e1)@(get_F e2)@(produit_cartesien (get_S e1) (get_P e2))
   | Star(e1) -> (get_F e1)@(produit_cartesien (get_S e1) (get_P e1))
   | Option(e1) -> get_F e1
+                    
+let rec decoder (x: int) (codage: (int * char) list): char=
+  match codage with
+  | [] -> failwith "code invalide"
+  | (i, c)::rest ->
+      if i = x then
+        c 
+      else 
+        decoder x rest
+                    
+let rec initialiser_automate_pref (a: automate) (pref: int list) codage =
+  match pref with
+  | [] -> ()
+  | x::xs -> 
+      a.transitions.(a.nb_etats -1) <- ((decoder x codage), x)::a.transitions.(a.nb_etats -1) ;
+      initialiser_automate_pref a xs codage
+        
+let rec initialiser_automate_suff (a: automate) (suff: int list) =
+  match suff with
+  | [] -> ()
+  | x::xs -> 
+      a.terminaux.(x) <- true ;
+      initialiser_automate_suff a xs 
+        
+let rec creation_arcs (a: automate)(fact: (int * int) list) (codage: (int * char) list) =
+  match fact with
+  | [] -> ()
+  | (x1, x2)::xs ->
+      begin
+        a.transitions.(x1) <- ((decoder x2 codage), x2)::a.transitions.(x1);
+        creation_arcs a xs codage
+      end
+                                               
+let glushkov(e: regex2) (codage: (int * char) list): automate =
+  let len = List.length codage +1 in
+  let res = {nb_etats = len; initial = Array.make len false; terminaux =  Array.make len false; transitions = Array.make len [] } in
+  let pref = get_P e in
+  let suff = get_S e in
+  let fact = get_F e in
+  begin
+    initialiser_automate_pref res pref codage;
+    initialiser_automate_suff res suff;
+    creation_arcs res fact codage;
+    res.initial.(res.nb_etats -1) <- true
+  end;
+  res
