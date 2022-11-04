@@ -30,6 +30,14 @@ let rec union (s1: 'a list) (s2: 'a list): 'a list =
     if not (List.mem x s2) then union xs (x::s2)
     else union xs s2
 
+let index (elem: 'a) (l: 'a list) =
+  let rec aux (count: int) (rest: 'a list) =
+    match l with
+    | [] -> failwith "Error: element not found"
+    | e::es ->
+      if elem = e then count else aux (count + 1) es
+  in aux 0 l
+
 let rec print_regex (exp: regex): unit =
   match exp with
   | Point ->
@@ -199,6 +207,48 @@ let deterministic_transitions (a: automate): triplet list =
         explore_all (union neighbors r) (union neighbors elems)
   in explore_all res todo
 
+let deterministic_states (a: automate): state list =
+  let trans = deterministic_transitions a in
+  let rec aux (rest: triplet list) (acc: state list) =
+    match rest with
+    | [] -> acc
+    | (s1, c, s2)::rests ->
+      if not (List.mem s2 acc) then aux rests (s2::acc)
+      else aux rests acc
+  in aux trans []
+
+let rec is_deterministic_terminal (s: state) (a: automate): bool =
+  let terms = a.terminaux in 
+  match s with
+  | [] -> false
+  | x::xs ->
+    if terms.(x) then true
+    else is_deterministic_terminal xs a
+
+let deterministic_initials (a: automate) (states: state list): bool =
+  let n = List.length states 
+  let inits = intials_list a in
+  let new_init = Array.make n false in 
+  let spotinit = index inits states in 
+  new_init.(spotinit) <- true;
+
+
 let determinize (a: automate): automate =
-  let transitions: triplet list = deterministic_transitions a in 
-  let rec transition_transform 
+  let terms = terminals_list a in
+  let transitions: triplet list = deterministic_transitions a in
+  let states = deterministic_states a in
+  let n = List.length states in 
+  let new_transitions: (char * int) list array = Array.make n [] in 
+  let rec transition_transform (tr: triplet list): unit =
+    match tr with
+    | [] -> ()
+    | (q, None, qp)::rest -> ()
+    | (q, Some(s), qp)::rest ->
+      let spot1 = index q states in
+      let spot2 = index qp states in
+      new_transitions.(spot1) <- (s, spot2)::new_transitions.(spot1)
+  in 
+  transition_transform transitions;
+  
+  let new_terminals = Array.make n false in 
+  let new_auto: automate = {nb_etats: n, initiaux} in 
