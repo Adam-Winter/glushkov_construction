@@ -23,7 +23,7 @@ let e: regex = Star(Concat(Union(Letter('b'), Star(Letter('a'))), Letter('c')))
 
 let s: string = "ab@c|*d@e|*"
 
-let rec union (s1: state) (s2: state): state =
+let rec union (s1: 'a list) (s2: 'a list): 'a list =
   match s1 with
   | [] -> s2
   | x::xs ->
@@ -149,6 +149,17 @@ let intials_list (a: automate): int list =
       else aux (index + 1) acc
   in aux 0 []
 
+let terminals_list (a: automate): int list =
+  let n = a.nb_etats in
+  let rec aux (index: int) (acc: int list): int list =
+    if index = (n - 1) then
+      if a.terminaux.(n - 1) then (n - 1)::acc
+      else acc
+    else
+      if a.terminaux.(index) then aux (index + 1) (index::acc)
+      else aux (index + 1) acc
+  in aux 0 []
+
 let rec next_state_from_int (auto: automate) (a: char) (q: int): int list = 
   let rec aux (rest: (char * int) list) (destinations: int list): int list =
     match rest with
@@ -164,25 +175,30 @@ let rec next_state_from_state (auto: automate) (a: char) (q: state): state =
   | i::is ->
     union (next_state_from_int auto a i) (next_state_from_state auto a is)
 
+let explore_state (a: automate) (s: state) (alph: char list): triplet list =
+  let rec aux (alphrest: char list) (acc: triplet list) =
+    match alphrest with
+    | [] -> acc
+    | c::cs ->
+      let sn: state = next_state_from_state a c s in 
+      aux cs ((s, Some(c), sn)::acc)
+  in aux alph []
+
 let deterministic_transitions (a: automate): triplet list =
-  let alph: char list = recognized_alphabet a in 
-  let alphlen: int = List.length alph in
+  let alph: char list = recognized_alphabet a in
   let inits: int list = intials_list a in
-  let seen: state list = [inits] in
-  let res: triplet list = [([], None, inits)] in 
+  let res: triplet list = [([], None, inits)] in
   let todo: triplet list = [([], None, inits)] in
-  let explore_all (r: triplet list) (t: triplet list): triplet list =
+  let rec explore_all (r: triplet list) (t: triplet list): triplet list =
     match t with
     | [] -> r
     | elem::elems ->
       match elem with
-      | (q, c, qp) ->
-        let temp: triplet list ref = ref [] in
-        for i = 0 to (alphlen - 1) do 
-          let newstate: state = next_state_from_current_for_letter (alph.(i)) qp in
-          if not List.mem seen newstate then
-            temp <- (qp, (alph.(i)), newstate)::(!temp)
-        done;
-        explore_all (List.rev_append (List.rev temp) seen) (List.rev_append (List.rev temp) elems)
-  in
-  explore_all seen todo
+      | (lorig, c, ldest) ->
+        let neighbors = explore_state a ldest alph in 
+        explore_all (union neighbors r) (union neighbors elems)
+  in explore_all res todo
+
+let determinize (a: automate): automate =
+  let transitions: triplet list = deterministic_transitions a in 
+  let rec transition_transform 
