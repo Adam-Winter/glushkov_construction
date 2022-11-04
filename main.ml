@@ -17,10 +17,11 @@ type regex2 =
 
 type automate = {
   nb_etats : int;
-  initial : bool array;
+  initiaux : bool array;
   terminaux : bool array;
   transitions : (char * int) list array
 }
+
       
 let e: regex = Star(Concat(Union(Letter('b'), Star(Letter('a'))), Letter('c')))
 
@@ -248,7 +249,7 @@ let rec creation_arcs (a: automate)(fact: (int * int) list) (codage: (int * char
                                                
 let glushkov(e: regex2) (codage: (int * char) list): automate =
   let len = List.length codage +1 in
-  let res = {nb_etats = len; initial = Array.make len false; terminaux =  Array.make len false; transitions = Array.make len [] } in
+  let res = {nb_etats = len; initiaux = Array.make len false; terminaux =  Array.make len false; transitions = Array.make len [] } in
   let pref = get_P e in
   let suff = get_S e in
   let fact = get_F e in
@@ -256,6 +257,37 @@ let glushkov(e: regex2) (codage: (int * char) list): automate =
     initialiser_automate_pref res pref codage;
     initialiser_automate_suff res suff;
     creation_arcs res fact codage;
-    res.initial.(res.nb_etats -1) <- true
+    res.initiaux.(res.nb_etats -1) <- true
   end;
   res
+  
+  
+let find_initial (a: automate): int =
+  (* On suppose que a est deterministe donc qu'il n'y a qu'un seul etata inital*)
+  let rec aux i= 
+    if i = a.nb_etats then
+      failwith "pas d'etat inital"
+    else if a.initiaux.(i) then i 
+    else aux (i+1)
+  in aux 0
+        
+      
+let get_next (a: automate) (state: int) (transi: char) =
+  let rec aux (l: (char * int) list) =
+    match l with
+    | [] -> -1
+    |(c, q)::rest -> 
+        if c = transi then q
+        else aux rest 
+  in aux a.transitions.(state)
+  
+let is_recognized (a: automate) (m: string)=
+  let len = String.length m in 
+  let rec aux (curr: int) (i: int) =
+    let next = get_next a curr m.[i] in
+    if next = -1 then
+      false
+    else if i = len-1 then 
+      a.terminaux.(curr)
+    else aux next (i+1)
+  in aux (find_initial a) 0
