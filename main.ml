@@ -469,7 +469,7 @@ let determinize (a: automate): automate =
 (* >-----------------------------------------------------------------< *)
 
 let find_initial (a: automate): int =
-  (* On suppose que a est deterministe donc qu'il n'y a qu'un seul etata inital*)
+  (* On suppose que a est deterministe et donc qu'il n'y a qu'un seul etat inital*)
   let rec aux i= 
     if i = a.nb_etats then
       failwith "pas d'etat inital"
@@ -485,7 +485,7 @@ let get_next (a: automate) (state: int) (transi: char) =
         if c = transi then q
         else aux rest 
   in aux a.transitions.(state)
-  
+
 let is_recognized (a: automate) (m: string)=
   let len = String.length m in 
   let rec aux (curr: int) (i: int) =
