@@ -13,7 +13,7 @@ type automate = {
   transitions: (char * int) list array; 
 }
 
-type state = int array option
+type state = int list
 
 type transition = char option
 
@@ -22,6 +22,13 @@ type triplet = state * transition * state
 let e: regex = Star(Concat(Union(Letter('b'), Star(Letter('a'))), Letter('c')))
 
 let s: string = "ab@c|*d@e|*"
+
+let rec union (s1: state) (s2: state): state =
+  match s1 with
+  | [] -> s2
+  | x::xs ->
+    if not (List.mem x s2) then union xs (x::s2)
+    else union xs s2
 
 let rec print_regex (exp: regex): unit =
   match exp with
@@ -117,7 +124,7 @@ let regex_of_string (s: string): regex =
         aux (Letter(s.[i])::e1::e2::rest) (i + 1) 
   in aux [] 0
 
-let recognized_alphabet (a: automate): char array =
+let recognized_alphabet (a: automate): char list =
   let n: int = a.nb_etats in
   let rec aux (charlist: char list) (current: (char*int) list) (i: int): char list =
     match current with
@@ -129,79 +136,44 @@ let recognized_alphabet (a: automate): char array =
     | (c, x)::rest ->
       aux (c::charlist) rest i
   in
-  let charlist = aux [] (a.transitions.(0)) 0 in
-  let n: int = List.length charlist in
-  let array: char array = Array.make n 'a' in
-  let rec array_of_list (l: char list) (index: int): unit =
-    match l with
-    | [] -> ()
-    | c::rest ->
-      begin 
-        array.(index) <- c;
-        array_of_list rest (index + 1)
-      end
-  in array_of_list charlist 0 ;
-  array 
+  aux [] (a.transitions.(0)) 0
 
-let intials_array (a: automate): int array =
+let intials_list (a: automate): int list =
   let n = a.nb_etats in
-  let rec initials_list (index: int) (acc: int list): int list =
+  let rec aux (index: int) (acc: int list): int list =
     if index = (n - 1) then
       if a.initiaux.(n - 1) then (n - 1)::acc
       else acc
     else
-      if a.initiaux.(index) then initials_list (index + 1) (index::acc)
-      else initials_list (index + 1) acc
-  in
-  let l = initials_list 0 [] in
-  let nb_initials = List.length l in
-  let array: int array = Array.make nb_initials 0 in
-  let rec array_of_list (l: int list) (index: int): unit =
-    match l with
-    | [] -> ()
-    | c::rest ->
-      begin 
-        array.(index) <- c;
-        array_of_list rest (index + 1)
-      end
-  in array_of_list l 0 ;
-  array
+      if a.initiaux.(index) then aux (index + 1) (index::acc)
+      else aux (index + 1) acc
+  in aux 0 []
 
-let rec next_state_from_int (auto: automate) (a: char) (q: int): int array = 
+let rec next_state_from_int (auto: automate) (a: char) (q: int): int list = 
   let rec aux (rest: (char * int) list) (destinations: int list): int list =
     match rest with
     | [] -> destinations
     | (c, i)::elems ->
       if a = c then aux elems (i::destinations)
       else aux elems destinations
-  in
-  let l = aux (auto.transitions.(q)) [] in
-  Array.of_list l
+  in aux (auto.transitions.(q)) []
 
-let next_state_from_state (auto: automate) (a: char) (q: state): state =
+let rec next_state_from_state (auto: automate) (a: char) (q: state): state =
   match q with
-  | None -> None
-  | Some(ar) ->
-    let n = Array.length ar in 
-    for i = 0 to (n - 1) do
-      let temp: int array = next_state_from_int auto a ar.(i) in
-      let new = Array.append temp (!res) in
-      res <- new
-    done;
-  
-
+  | [] -> []
+  | i::is ->
+    union (next_state_from_int auto a i) (next_state_from_state auto a is)
 
 let deterministic_transitions (a: automate): triplet list =
-  let n: int = a.nb_etats in
-  let alph: char array = recognized_alphabet a in 
-  let alphlen: int = Array.length alph in
-  let inits: int array = intials_array a in
-  let seen = state list in
-  let res = (None, None, Some(inits))::[] in 
-  let todo = (None, None, Some(inits))::[] in
-  let explore_all (s: triplet list) (t: triplet list): triplet list =
+  let alph: char list = recognized_alphabet a in 
+  let alphlen: int = List.length alph in
+  let inits: int list = intials_list a in
+  let seen: state list = [inits] in
+  let res: triplet list = [([], None, inits)] in 
+  let todo: triplet list = [([], None, inits)] in
+  let explore_all (r: triplet list) (t: triplet list): triplet list =
     match t with
-    | [] -> s
+    | [] -> r
     | elem::elems ->
       match elem with
       | (q, c, qp) ->
