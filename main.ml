@@ -13,6 +13,12 @@ type automate = {
   transitions: (char * int) list array; 
 }
 
+type state = int array option
+
+type transition = char option
+
+type triplet = state * transition * state
+
 let e: regex = Star(Concat(Union(Letter('b'), Star(Letter('a'))), Letter('c')))
 
 let s: string = "ab@c|*d@e|*"
@@ -111,7 +117,7 @@ let regex_of_string (s: string): regex =
         aux (Letter(s.[i])::e1::e2::rest) (i + 1) 
   in aux [] 0
 
-let alphabet_reconnu (a: automate): char array =
+let recognized_alphabet (a: automate): char array =
   let n: int = a.nb_etats in
   let rec aux (charlist: char list) (current: (char*int) list) (i: int): char list =
     match current with
@@ -137,26 +143,54 @@ let alphabet_reconnu (a: automate): char array =
   in array_of_list charlist 0 ;
   array 
 
-let deterministic_states (a: automate): int list array =
-  let n: int = a.nb_etats in
-  let recalph = alphabet_reconnu a in 
-  let alphlen = Array.length recalph in
-  let rec initials (index: int) (acc: int list): int list =
+let intials_array (a: automate): int array =
+  let n = a.nb_etats in
+  let rec initials_list (index: int) (acc: int list): int list =
     if index = (n - 1) then
       if a.initiaux.(n - 1) then (n - 1)::acc
       else acc
     else
-      if a.initiaux.(index) then initials (index + 1) (index::acc)
-      else initials (index + 1) acc
-  in 
-  let inits: int list = initials 0 [] in
-  let rec deterministic_states_list (queue: int list list) (acc: int list list): int list list =
-    match queue with
-    | [] -> acc
-    | l::ls ->
-      
+      if a.initiaux.(index) then initials_list (index + 1) (index::acc)
+      else initials_list (index + 1) acc
+  in
+  let l = initials_list 0 [] in
+  let nb_initials = List.length l in
+  let array: int array = Array.make nb_initials 0 in
+  let rec array_of_list (l: int list) (index: int): unit =
+    match l with
+    | [] -> ()
+    | c::rest ->
+      begin 
+        array.(index) <- c;
+        array_of_list rest (index + 1)
+      end
+  in array_of_list l 0 ;
+  array
 
+let next_state_from_current_for_letter (a: char) (q: state): state =
+  let rec aux (rest: (char * int) list) =
+    match rest with
+    | [] -> (Some())
 
-let determinize (a: automate): automate =
-  let recalph = alphabet_reconnu a in 
-  let alphlen = List.length recalph in 
+let deterministic_transitions (a: automate): int array array =
+  let n: int = a.nb_etats in
+  let alph: char array = recognized_alphabet a in 
+  let alphlen: int = Array.length alph in
+  let inits: int array = intials_array a in
+  let seen = (None, None, Some(inits))::[] in 
+  let todo = (None, None, Some(inits))::[] in
+  let explore_all (s: triplet list) (t: triplet list): triplet list =
+    match t with
+    | [] -> s
+    | elem::elems ->
+      match elem with
+      | (q, c, qp) ->
+        let temp: triplet list ref = ref [] in
+        for i = 0 to (alphlen - 1) do 
+          let newstate = next_state_from_current_for_letter (alph.(i)) qp in 
+          if not List.mem seen newstate then
+            temp <- newstate::(!temp)
+        done;
+        explore_all (temp @ seen) elems
+  in
+  explore_all seen todo
