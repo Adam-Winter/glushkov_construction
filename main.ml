@@ -167,17 +167,37 @@ let intials_array (a: automate): int array =
   in array_of_list l 0 ;
   array
 
-let next_state_from_current_for_letter (a: char) (q: state): state =
-  let rec aux (rest: (char * int) list) =
+let rec next_state_from_int (auto: automate) (a: char) (q: int): int array = 
+  let rec aux (rest: (char * int) list) (destinations: int list): int list =
     match rest with
-    | [] -> (Some())
+    | [] -> destinations
+    | (c, i)::elems ->
+      if a = c then aux elems (i::destinations)
+      else aux elems destinations
+  in
+  let l = aux (auto.transitions.(q)) [] in
+  Array.of_list l
 
-let deterministic_transitions (a: automate): int array array =
+let next_state_from_state (auto: automate) (a: char) (q: state): state =
+  match q with
+  | None -> None
+  | Some(ar) ->
+    let n = Array.length ar in 
+    for i = 0 to (n - 1) do
+      let temp: int array = next_state_from_int auto a ar.(i) in
+      let new = Array.append temp (!res) in
+      res <- new
+    done;
+  
+
+
+let deterministic_transitions (a: automate): triplet list =
   let n: int = a.nb_etats in
   let alph: char array = recognized_alphabet a in 
   let alphlen: int = Array.length alph in
   let inits: int array = intials_array a in
-  let seen = (None, None, Some(inits))::[] in 
+  let seen = state list in
+  let res = (None, None, Some(inits))::[] in 
   let todo = (None, None, Some(inits))::[] in
   let explore_all (s: triplet list) (t: triplet list): triplet list =
     match t with
@@ -187,10 +207,10 @@ let deterministic_transitions (a: automate): int array array =
       | (q, c, qp) ->
         let temp: triplet list ref = ref [] in
         for i = 0 to (alphlen - 1) do 
-          let newstate = next_state_from_current_for_letter (alph.(i)) qp in 
+          let newstate: state = next_state_from_current_for_letter (alph.(i)) qp in
           if not List.mem seen newstate then
-            temp <- newstate::(!temp)
+            temp <- (qp, (alph.(i)), newstate)::(!temp)
         done;
-        explore_all (temp @ seen) elems
+        explore_all (List.rev_append (List.rev temp) seen) (List.rev_append (List.rev temp) elems)
   in
   explore_all seen todo
