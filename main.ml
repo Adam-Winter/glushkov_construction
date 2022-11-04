@@ -217,6 +217,21 @@ let deterministic_states (a: automate): state list =
       else aux rests acc
   in aux trans []
 
+let transition_transform (tr: triplet list) (states: state list): (char * int) list array =
+  let n = List.length states in
+  let new_transitions: (char * int) list array = Array.make n [] in
+  let rec aux (l: triplet list) =
+    match l with
+    | [] -> ()
+    | (q, None, qp)::rest -> ()
+    | (q, Some(s), qp)::rest ->
+      let spot1 = index q states in
+      let spot2 = index qp states in
+      new_transitions.(spot1) <- ((s, spot2)::new_transitions.(spot1));
+      aux rest
+  in aux tr;
+  new_transitions
+
 let rec is_deterministic_terminal (s: state) (a: automate): bool =
   let terms = a.terminaux in 
   match s with
@@ -225,30 +240,44 @@ let rec is_deterministic_terminal (s: state) (a: automate): bool =
     if terms.(x) then true
     else is_deterministic_terminal xs a
 
-let deterministic_initials (a: automate) (states: state list): bool =
-  let n = List.length states 
+let deterministic_initials (a: automate) (states: state list): bool array =
+  let n = List.length states in
   let inits = intials_list a in
   let new_init = Array.make n false in 
   let spotinit = index inits states in 
   new_init.(spotinit) <- true;
+  new_init
 
+let has_a_terminal (s: state) (a: automate): bool =
+  let terms = a.terminaux in 
+  let n = a.nb_etats in
+  let b = ref false in
+  for i = 0 to (n - 1) do 
+    if (terms.(i) && List.mem i s) then b := true
+  done;
+  !b 
+
+let deterministic_terminals (a: automate) (states: state list): bool array =
+  let n = List.length states in
+  let new_term = Array.make n false in
+  let rec aux (rest: state list) =
+    match rest with
+    | [] -> ()
+    | stt::stts ->
+      begin
+        if has_a_terminal stt a then 
+          new_term.(index stt states) <- true;
+        aux stts  
+      end
+  in aux states;
+  new_term
 
 let determinize (a: automate): automate =
-  let terms = terminals_list a in
   let transitions: triplet list = deterministic_transitions a in
   let states = deterministic_states a in
-  let n = List.length states in 
-  let new_transitions: (char * int) list array = Array.make n [] in 
-  let rec transition_transform (tr: triplet list): unit =
-    match tr with
-    | [] -> ()
-    | (q, None, qp)::rest -> ()
-    | (q, Some(s), qp)::rest ->
-      let spot1 = index q states in
-      let spot2 = index qp states in
-      new_transitions.(spot1) <- (s, spot2)::new_transitions.(spot1)
-  in 
-  transition_transform transitions;
-  
-  let new_terminals = Array.make n false in 
-  let new_auto: automate = {nb_etats: n, initiaux} in 
+  let n = List.length states in
+  let new_transitions = transition_transform transitions states in 
+  let new_terms = deterministic_terminals a states in 
+  let new_inits = deterministic_initials a states in
+  let new_auto: automate = {nb_etats = n; initiaux = new_inits; terminaux = new_terms; transitions = new_transitions} in 
+  new_auto
