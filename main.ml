@@ -310,6 +310,10 @@ let glushkov(e: regex2) (codage: (int * char) list): automate =
   end;
   res
 
+let regex_string_to_glushkov (s: string): automate =
+  let reg, l = regex_of_string_linearized s in 
+  glushkov reg l
+
 (* >----------------------------------------< *)
 (* Fonctions de déterminisation de l'automate *)
 (* >----------------------------------------< *)
@@ -374,8 +378,15 @@ let explore_state (a: automate) (s: state) (alph: char list): triplet list =
       aux cs ((s, Some(c), sn)::acc)
   in aux alph []
 
+let alphabet2 =
+  let l = ref [] in
+  for i = 0 to 127 do
+    l := (char_of_int i)::(!l)
+  done;
+  !l
+
 let deterministic_transitions (a: automate): triplet list =
-  let alph: char list = recognized_alphabet a in
+  let alph: char list = alphabet2 in
   let inits: int list = intials_list a in
   let res: triplet list = [([], None, inits)] in
   let todo: triplet list = [([], None, inits)] in
